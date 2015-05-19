@@ -9,5 +9,9 @@
         android:text="@string/hello_world"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
-
+    <TextView android:id="@+id/loadingText"
+        android:text=""
+        android:layout_below="@id/helloText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
 </RelativeLayout>

@@ -1,5 +1,6 @@
 package ian_ellis.flickrtask;
 
+import android.app.Activity;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.view.Menu;
@@ -7,66 +8,76 @@ import android.view.MenuItem;
 import android.widget.TextView;
 
 
-import org.json.JSONException;
+import org.json.JSONObject;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
 
-import ian_ellis.flickrtask.services.FlickrServices;
+import ian_ellis.flickrtask.activities.RxActionBarActivity;
+import ian_ellis.flickrtask.model.FlickrItem;
+import ian_ellis.flickrtask.observables.BooleanBus;
+import ian_ellis.flickrtask.observables.Observables;
+import ian_ellis.flickrtask.services.Requests;
 import rx.Observable;
-import rx.Subscriber;
+import rx.Subscription;
+import rx.android.lifecycle.LifecycleObservable;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.schedulers.Schedulers;
+import rx.subscriptions.CompositeSubscription;
 
 
-public class MainActivity extends ActionBarActivity {
-
-    private FlickrServices mServices;
+public class MainActivity extends RxActionBarActivity {
+    // views
+    private TextView mHelloText;
+    private TextView mLoadingText;
+    // bus
+    private BooleanBus mRefreshClickBus;
+    // observables
+    private Observable<ArrayList<FlickrItem>> mFlickrItemsObs;
+    private Observable<Boolean> mLoadingObs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        TextView helloText = (TextView) findViewById(R.id.helloText);
 
-        mServices = new FlickrServices(this);
+        mHelloText = (TextView) findViewById(R.id.helloText);
+        mLoadingText = (TextView) findViewById(R.id.loadingText);
+        mRefreshClickBus = new BooleanBus();
 
-        runOnUiThread(()->{
-            helloText.setText("LAMBDA STYLE");
-        });
-        mServices.makeRequest(json -> {
-            try {
-                helloText.setText("JSON LAMBDA STYLE " + json.get("title"));
-            }catch (JSONException e){
-                helloText.setText("JSON LAMBDA STYLE ");
-            }
-        },error -> {
-            helloText.setText("UN OH LAMBDA STYLE" + error.getMessage());
+        mFlickrItemsObs = mRefreshClickBus.toObserverable().flatMap(click -> {
+            Observable<JSONObject> jsonObs = Observables.flickrRequestObservable(this).subscribeOn(Schedulers.io());
+            return Observables.flickrItemsObservable(jsonObs).subscribeOn(Schedulers.newThread());
         });
 
+        mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs);
 
-//        JsonObjectRequest jsObjRequest = new JsonObjectRequest
-//            (Request.Method.GET, url, null, new Response.Listener<JSONObject>() {
-//
-//                @Override
-//                public void onResponse(JSONObject response) {
-//                    mTxtDisplay.setText("Response: " + response.toString());
-//                }
-//            }, new Response.ErrorListener() {
-//
-//                @Override
-//                public void onErrorResponse(VolleyError error) {
-//                    // TODO Auto-generated method stub
-//
-//                }
-//            });
+        // binding on lifecycle ensures automaticlly unsubscribed when activity is destroyed
+        // ala https://github.com/ReactiveX/RxAndroid/blob/0.x/sample-app/src/main/java/rx/android/samples/LifecycleObservableActivity.java
+        LifecycleObservable.bindActivityLifecycle(lifecycle(),mLoadingObs)
+                .subscribeOn(Schedulers.newThread())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(this::loadingStateChanged);
 
 
+        LifecycleObservable.bindActivityLifecycle(lifecycle(),mFlickrItemsObs)
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(this::loaded);
 
 
     }
 
-//    @Override
+    protected void loaded(ArrayList<FlickrItem> items) {
+        mHelloText.setText("GOT FLICKR ITEMS");
+    }
+
+    protected void loadingStateChanged(boolean loading) {
+        String msg = (loading) ? "Loading" : "Loaded";
+        mLoadingText.setText(msg);
+    }
+
+
+
+
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
@@ -85,6 +96,13 @@ public class MainActivity extends ActionBarActivity {
             return true;
         }
 
+        if (id == R.id.menu_refresh) {
+            mRefreshClickBus.push(true);
+            return true;
+        }
+
         return super.onOptionsItemSelected(item);
     }
+
+
 }
