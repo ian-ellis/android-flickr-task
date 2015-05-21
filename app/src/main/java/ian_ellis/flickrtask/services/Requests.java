@@ -22,7 +22,7 @@ public class Requests {
     }
 
     public void makeRequest(Request request) {
-        RequestQue.getInstance(mContext).addToRequestQueue(request);
+        RequestQueue.getInstance(mContext).addToRequestQueue(request);
     }
 
     public JsonObjectRequest getRequest(String url, Response.Listener<JSONObject> listener, Response.ErrorListener errorListener) {

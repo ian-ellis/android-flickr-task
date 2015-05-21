@@ -1,9 +1,7 @@
 package ian_ellis.flickrtask;
 
-import android.app.Activity;
 import android.content.Context;
 import android.support.v4.view.ViewPager;
-import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -11,8 +9,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 
@@ -24,15 +20,10 @@ import ian_ellis.flickrtask.activities.RxActionBarActivity;
 import ian_ellis.flickrtask.model.FlickrItem;
 import ian_ellis.flickrtask.observables.BooleanBus;
 import ian_ellis.flickrtask.observables.Observables;
-import ian_ellis.flickrtask.services.Requests;
 import ian_ellis.flickrtask.view.adapters.FlickrItemImageAdapter;
 import rx.Observable;
-import rx.Subscription;
 import rx.android.lifecycle.LifecycleObservable;
-import rx.android.schedulers.AndroidSchedulers;
 import rx.schedulers.Schedulers;
-import rx.subscriptions.CompositeSubscription;
-
 
 public class MainActivity extends RxActionBarActivity {
     // views
@@ -74,12 +65,17 @@ public class MainActivity extends RxActionBarActivity {
 
         // binding on lifecycle ensures automaticlly unsubscribed when activity is destroyed
         // ala https://github.com/ReactiveX/RxAndroid/blob/0.x/sample-app/src/main/java/rx/android/samples/LifecycleObservableActivity.java
+
+
+
+    }
+
+    protected void subscribeAll() {
         LifecycleObservable.bindActivityLifecycle(lifecycle(), mLoadingObs)
-            .subscribe(this::loadingStateChanged);
+                .subscribe(this::loadingStateChanged);
 
         LifecycleObservable.bindActivityLifecycle(lifecycle(), mFlickrItemsObs)
-            .subscribe(this::loaded);
-
+                .subscribe(this::loaded);
     }
 
     protected void loaded(ArrayList<FlickrItem> items) {
@@ -98,6 +94,7 @@ public class MainActivity extends RxActionBarActivity {
             actionView.startAnimation(rotation);
             mRefreshMenuItem.setActionView(actionView);
         } else {
+
             mRefreshMenuItem.getActionView().clearAnimation();
             mRefreshMenuItem.setActionView(null);
         }
@@ -108,6 +105,10 @@ public class MainActivity extends RxActionBarActivity {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         // store reference to the menu item so we dont have to keep looking it up
         mRefreshMenuItem = menu.findItem(R.id.menu_refresh_item);
+        // now we have the menu item we can subscribe
+        subscribeAll();
+        // and push to start load
+        mRefreshClickBus.push(true);
         return true;
     }
 

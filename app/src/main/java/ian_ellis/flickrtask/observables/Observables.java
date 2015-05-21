@@ -2,22 +2,16 @@ package ian_ellis.flickrtask.observables;
 
 import android.content.Context;
 
-import com.android.volley.Request;
-import com.android.volley.toolbox.RequestFuture;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.concurrent.ExecutionException;
 
 import ian_ellis.flickrtask.model.FlickrItem;
-import ian_ellis.flickrtask.services.RequestQue;
+import ian_ellis.flickrtask.services.RequestQueue;
 import ian_ellis.flickrtask.services.Requests;
 import rx.Observable;
-import rx.android.schedulers.AndroidSchedulers;
-import rx.schedulers.Schedulers;
 
 /**
  * Created by Ian on 17/05/2015.
@@ -30,7 +24,7 @@ public class Observables {
         Requests requests = new Requests(context);
 
         return Observable.create(sub -> {
-            RequestQue.getInstance(context).addToRequestQueue(
+            RequestQueue.getInstance(context).addToRequestQueue(
                 requests.getRequest(API_PATH,
                     next -> {
                         sub.onNext(next);

@@ -5,33 +5,35 @@ import android.graphics.Bitmap;
 import android.util.LruCache;
 
 import com.android.volley.Request;
-import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.ImageLoader;
 import com.android.volley.toolbox.Volley;
+
+import ian_ellis.flickrtask.constants.ConfigConstants;
 
 /**
  * Created by Ian on 17/05/2015.
  */
-public class RequestQue {
+public class RequestQueue {
 
-    private static RequestQue mInstance;
-    public static synchronized RequestQue getInstance(Context context) {
+    private static RequestQueue mInstance;
+    public static synchronized RequestQueue getInstance(Context context) {
         if (mInstance == null) {
-            mInstance = new RequestQue(context);
+            mInstance = new RequestQueue(context);
         }
         return mInstance;
     }
 
-    private RequestQueue mRequestQueue;
+    private com.android.volley.RequestQueue mRequestQueue;
     private ImageLoader mImageLoader;
     private static Context mCtx;
 
-    private RequestQue(Context context) {
+    private RequestQueue(Context context) {
         mCtx = context;
         mRequestQueue = getRequestQueue();
 
         mImageLoader = new ImageLoader(mRequestQueue, new ImageLoader.ImageCache() {
-            private final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(20);
+
+            private final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(ConfigConstants.IMAGE_CACHE_SIZE);
 
             @Override
             public Bitmap getBitmap(String url) {
@@ -47,7 +49,7 @@ public class RequestQue {
 
 
 
-    public RequestQueue getRequestQueue() {
+    public com.android.volley.RequestQueue getRequestQueue() {
         if (mRequestQueue == null) {
             // getApplicationContext() is key, it keeps you from leaking the
             // Activity or BroadcastReceiver if someone passes one in.
