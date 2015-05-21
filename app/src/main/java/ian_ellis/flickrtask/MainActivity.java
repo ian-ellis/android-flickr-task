@@ -1,5 +1,8 @@
 package ian_ellis.flickrtask;
 
+import org.json.JSONObject;
+import java.util.ArrayList;
+
 import android.content.Context;
 import android.support.v4.view.ViewPager;
 import android.os.Bundle;
@@ -9,12 +12,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.widget.TextView;
-
-
-import org.json.JSONObject;
-
-import java.util.ArrayList;
 
 import ian_ellis.flickrtask.activities.RxActionBarActivity;
 import ian_ellis.flickrtask.model.FlickrItem;
@@ -27,9 +24,10 @@ import rx.schedulers.Schedulers;
 
 public class MainActivity extends RxActionBarActivity {
     // views
-    private TextView mHelloText;
-    private TextView mLoadingText;
+    private View mActionView;
     private MenuItem mRefreshMenuItem;
+    // animation
+    private Animation mRotation;
     // bus
     private BooleanBus mRefreshClickBus;
     // observables
@@ -51,6 +49,12 @@ public class MainActivity extends RxActionBarActivity {
         mPagerAdapter = new FlickrItemImageAdapter(getSupportFragmentManager(), mItems);
         mPager = (ViewPager)findViewById(R.id.pager);
         mPager.setAdapter(mPagerAdapter);
+        // prepare views
+        LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        mActionView = inflater.inflate(R.layout.ic_menu_refresh_image, null);
+        // prepare animations
+        mRotation = AnimationUtils.loadAnimation(this, R.anim.loading_rotate_anim);
+        mRotation.setRepeatCount(Animation.INFINITE);
         // simple bus to handle clicks to the refresh button
         mRefreshClickBus = new BooleanBus();
         // map the click of the refrsh button to a flickrRequest, which is transformed to flickr items
@@ -63,14 +67,15 @@ public class MainActivity extends RxActionBarActivity {
         // and the mFlickrItemsObjs triggering the loaded
         mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs);
 
-        // binding on lifecycle ensures automaticlly unsubscribed when activity is destroyed
-        // ala https://github.com/ReactiveX/RxAndroid/blob/0.x/sample-app/src/main/java/rx/android/samples/LifecycleObservableActivity.java
-
 
 
     }
 
     protected void subscribeAll() {
+
+        // binding on lifecycle ensures automaticlly unsubscribed when activity is destroyed and auto subscribed on UI thread
+        // ala https://github.com/ReactiveX/RxAndroid/blob/0.x/sample-app/src/main/java/rx/android/samples/LifecycleObservableActivity.java
+
         LifecycleObservable.bindActivityLifecycle(lifecycle(), mLoadingObs)
                 .subscribe(this::loadingStateChanged);
 
@@ -87,14 +92,9 @@ public class MainActivity extends RxActionBarActivity {
     protected void loadingStateChanged(boolean loading) {
 
         if (loading) {
-            LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-            Animation rotation = AnimationUtils.loadAnimation(this, R.anim.loading_rotate_anim);
-            rotation.setRepeatCount(Animation.INFINITE);
-            View actionView = inflater.inflate(R.layout.ic_menu_refresh_image, null);
-            actionView.startAnimation(rotation);
-            mRefreshMenuItem.setActionView(actionView);
+            mActionView .startAnimation(mRotation);
+            mRefreshMenuItem.setActionView(mActionView );
         } else {
-
             mRefreshMenuItem.getActionView().clearAnimation();
             mRefreshMenuItem.setActionView(null);
         }
