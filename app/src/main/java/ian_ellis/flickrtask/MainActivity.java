@@ -1,10 +1,18 @@
 package ian_ellis.flickrtask;
 
 import android.app.Activity;
+import android.content.Context;
+import android.support.v4.view.ViewPager;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 
@@ -17,6 +25,7 @@ import ian_ellis.flickrtask.model.FlickrItem;
 import ian_ellis.flickrtask.observables.BooleanBus;
 import ian_ellis.flickrtask.observables.Observables;
 import ian_ellis.flickrtask.services.Requests;
+import ian_ellis.flickrtask.view.adapters.FlickrItemImageAdapter;
 import rx.Observable;
 import rx.Subscription;
 import rx.android.lifecycle.LifecycleObservable;
@@ -29,74 +38,85 @@ public class MainActivity extends RxActionBarActivity {
     // views
     private TextView mHelloText;
     private TextView mLoadingText;
+    private MenuItem mRefreshMenuItem;
     // bus
     private BooleanBus mRefreshClickBus;
     // observables
     private Observable<ArrayList<FlickrItem>> mFlickrItemsObs;
     private Observable<Boolean> mLoadingObs;
+    // main view pager
+    private ViewPager mPager;
+    // View Model
+    private ArrayList<FlickrItem> mItems;
+    // pager
+    private FlickrItemImageAdapter mPagerAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mHelloText = (TextView) findViewById(R.id.helloText);
-        mLoadingText = (TextView) findViewById(R.id.loadingText);
+        mItems = new ArrayList<FlickrItem>();
+        mPagerAdapter = new FlickrItemImageAdapter(getSupportFragmentManager(), mItems);
+        mPager = (ViewPager)findViewById(R.id.pager);
+        mPager.setAdapter(mPagerAdapter);
+        // simple bus to handle clicks to the refresh button
         mRefreshClickBus = new BooleanBus();
-
-        mFlickrItemsObs = mRefreshClickBus.toObserverable().flatMap(click -> {
+        // map the click of the refrsh button to a flickrRequest, which is transformed to flickr items
+        mFlickrItemsObs = mRefreshClickBus.toObserverable().concatMap(click -> {
             Observable<JSONObject> jsonObs = Observables.flickrRequestObservable(this).subscribeOn(Schedulers.io());
-            return Observables.flickrItemsObservable(jsonObs).subscribeOn(Schedulers.newThread());
-        });
-
+            Observable<ArrayList<FlickrItem>> flickrObj = Observables.flickrItemsObservable(jsonObs).subscribeOn(Schedulers.newThread());
+            return flickrObj;
+        }).cache();
+        // create a loading state observable with the refresh click triggering the loading
+        // and the mFlickrItemsObjs triggering the loaded
         mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs);
 
         // binding on lifecycle ensures automaticlly unsubscribed when activity is destroyed
         // ala https://github.com/ReactiveX/RxAndroid/blob/0.x/sample-app/src/main/java/rx/android/samples/LifecycleObservableActivity.java
-        LifecycleObservable.bindActivityLifecycle(lifecycle(),mLoadingObs)
-                .subscribeOn(Schedulers.newThread())
-            .observeOn(AndroidSchedulers.mainThread())
+        LifecycleObservable.bindActivityLifecycle(lifecycle(), mLoadingObs)
             .subscribe(this::loadingStateChanged);
 
-
-        LifecycleObservable.bindActivityLifecycle(lifecycle(),mFlickrItemsObs)
-            .observeOn(AndroidSchedulers.mainThread())
+        LifecycleObservable.bindActivityLifecycle(lifecycle(), mFlickrItemsObs)
             .subscribe(this::loaded);
-
 
     }
 
     protected void loaded(ArrayList<FlickrItem> items) {
-        mHelloText.setText("GOT FLICKR ITEMS");
+        mItems.clear();
+        mItems.addAll(items);
+        mPagerAdapter.notifyDataSetChanged();
     }
 
     protected void loadingStateChanged(boolean loading) {
-        String msg = (loading) ? "Loading" : "Loaded";
-        mLoadingText.setText(msg);
+
+        if (loading) {
+            LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            Animation rotation = AnimationUtils.loadAnimation(this, R.anim.loading_rotate_anim);
+            rotation.setRepeatCount(Animation.INFINITE);
+            View actionView = inflater.inflate(R.layout.ic_menu_refresh_image, null);
+            actionView.startAnimation(rotation);
+            mRefreshMenuItem.setActionView(actionView);
+        } else {
+            mRefreshMenuItem.getActionView().clearAnimation();
+            mRefreshMenuItem.setActionView(null);
+        }
     }
-
-
-
 
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
+        // store reference to the menu item so we dont have to keep looking it up
+        mRefreshMenuItem = menu.findItem(R.id.menu_refresh_item);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        if (id == R.id.menu_refresh) {
+        if (id == R.id.menu_refresh_item) {
+            //refresh clicked so push value to the bus
             mRefreshClickBus.push(true);
             return true;
         }

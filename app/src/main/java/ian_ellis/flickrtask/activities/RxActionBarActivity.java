@@ -1,7 +1,7 @@
 package ian_ellis.flickrtask.activities;
 
 import android.os.Bundle;
-import android.support.v7.app.ActionBarActivity;
+import 	android.support.v7.app.AppCompatActivity;
 
 import rx.Observable;
 import rx.android.lifecycle.LifecycleEvent;
@@ -10,7 +10,7 @@ import rx.subjects.BehaviorSubject;
 /**
  * Created by Ian on 19/05/2015.
  */
-public class RxActionBarActivity extends ActionBarActivity {
+public class RxActionBarActivity extends AppCompatActivity {
 
     private final BehaviorSubject<LifecycleEvent> lifecycleSubject = BehaviorSubject.create();
 

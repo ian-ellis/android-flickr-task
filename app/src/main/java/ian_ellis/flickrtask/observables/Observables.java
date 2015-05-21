@@ -34,6 +34,7 @@ public class Observables {
                 requests.getRequest(API_PATH,
                     next -> {
                         sub.onNext(next);
+                        sub.onCompleted();
                     },
                     err -> {
                         sub.onError(new Throwable("Request Error"));

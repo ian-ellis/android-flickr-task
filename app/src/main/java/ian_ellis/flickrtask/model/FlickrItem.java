@@ -16,14 +16,18 @@ public class FlickrItem {
     private String mLink;
     private String mDateTaken;
     private String mDescription;
-    private String mMediaPath;
+    private String mMediumImagePath;
 
     public FlickrItem(JSONObject json) {
         mTitle = getString(json, "title");
         mLink= getString(json, "link");
         mDateTaken = getString(json, "date_taken");
         mDescription = getString(json, "description");
-        mMediaPath = getMediaPath(json, "m");
+        mMediumImagePath = getMediaPath(json, "m");
+    }
+
+    public String getMediumImagePath() {
+        return mMediumImagePath;
     }
 
     private static String getMediaPath(JSONObject json, String propName) {
