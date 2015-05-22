@@ -65,12 +65,12 @@ public class Observables {
 
     public static Observable<Boolean> loadingObservable(Observable<?> loadingTrigger, Observable<?> loadedTrigger) {
         return  rx.Observable.merge(
-                loadingTrigger.map(obj -> {
-                    return true;
-                }),
-                loadedTrigger.map(obj -> {
-                    return false;
-                })
+            loadingTrigger.map(obj -> {
+                return true;
+            }),
+            loadedTrigger.map(obj -> {
+                return false;
+            })
         );
     };
 }

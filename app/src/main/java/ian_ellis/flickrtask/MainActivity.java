@@ -19,6 +19,8 @@ import ian_ellis.flickrtask.observables.BooleanBus;
 import ian_ellis.flickrtask.observables.Observables;
 import ian_ellis.flickrtask.view.adapters.FlickrItemImageAdapter;
 import rx.Observable;
+import rx.observables.ConnectableObservable;
+import rx.Subscription;
 import rx.android.lifecycle.LifecycleObservable;
 import rx.schedulers.Schedulers;
 
@@ -32,7 +34,7 @@ public class MainActivity extends RxActionBarActivity {
     private BooleanBus mRefreshClickBus;
     // observables
     private Observable<ArrayList<FlickrItem>> mFlickrItemsObs;
-    private Observable<Boolean> mLoadingObs;
+    private ConnectableObservable<Boolean> mLoadingObs;
     // main view pager
     private ViewPager mPager;
     // View Model
@@ -47,7 +49,8 @@ public class MainActivity extends RxActionBarActivity {
 
         mItems = new ArrayList<FlickrItem>();
         mPagerAdapter = new FlickrItemImageAdapter(getSupportFragmentManager(), mItems);
-        mPager = (ViewPager)findViewById(R.id.pager);
+
+        mPager = (ViewPager) findViewById(R.id.pager);
         mPager.setAdapter(mPagerAdapter);
         // prepare views
         LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -65,22 +68,14 @@ public class MainActivity extends RxActionBarActivity {
         }).cache();
         // create a loading state observable with the refresh click triggering the loading
         // and the mFlickrItemsObjs triggering the loaded
-        mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs);
-
-
-
-    }
-
-    protected void subscribeAll() {
-
-        // binding on lifecycle ensures automaticlly unsubscribed when activity is destroyed and auto subscribed on UI thread
-        // ala https://github.com/ReactiveX/RxAndroid/blob/0.x/sample-app/src/main/java/rx/android/samples/LifecycleObservableActivity.java
-
-        LifecycleObservable.bindActivityLifecycle(lifecycle(), mLoadingObs)
-                .subscribe(this::loadingStateChanged);
+        mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs).replay(1);
+        mLoadingObs.publish();
+        mLoadingObs.connect();
 
         LifecycleObservable.bindActivityLifecycle(lifecycle(), mFlickrItemsObs)
                 .subscribe(this::loaded);
+
+        mRefreshClickBus.push(true);
     }
 
     protected void loaded(ArrayList<FlickrItem> items) {
@@ -90,12 +85,11 @@ public class MainActivity extends RxActionBarActivity {
     }
 
     protected void loadingStateChanged(boolean loading) {
-
         if (loading) {
-            mActionView .startAnimation(mRotation);
-            mRefreshMenuItem.setActionView(mActionView );
+            mActionView.startAnimation(mRotation);
+            mRefreshMenuItem.setActionView(mActionView);
         } else {
-            mRefreshMenuItem.getActionView().clearAnimation();
+            mActionView.clearAnimation();
             mRefreshMenuItem.setActionView(null);
         }
     }
@@ -105,10 +99,11 @@ public class MainActivity extends RxActionBarActivity {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         // store reference to the menu item so we dont have to keep looking it up
         mRefreshMenuItem = menu.findItem(R.id.menu_refresh_item);
-        // now we have the menu item we can subscribe
-        subscribeAll();
-        // and push to start load
-        mRefreshClickBus.push(true);
+        // now we have the menu item we can subscribe and start loading
+        // startUp();
+        LifecycleObservable.bindActivityLifecycle(lifecycle(), mLoadingObs)
+                .subscribe(this::loadingStateChanged);
+
         return true;
     }
 
