@@ -4,6 +4,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 import android.content.Context;
+import android.support.v4.app.FragmentManager;
 import android.support.v4.view.ViewPager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -14,6 +15,7 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 
 import ian_ellis.flickrtask.activities.RxActionBarActivity;
+import ian_ellis.flickrtask.activities.dataFragments.MainDataFragment;
 import ian_ellis.flickrtask.model.FlickrItem;
 import ian_ellis.flickrtask.observables.BooleanBus;
 import ian_ellis.flickrtask.observables.Observables;
@@ -25,6 +27,8 @@ import rx.android.lifecycle.LifecycleObservable;
 import rx.schedulers.Schedulers;
 
 public class MainActivity extends RxActionBarActivity {
+    private static String DATA_TAG = "MainActivityData";
+
     // views
     private View mActionView;
     private MenuItem mRefreshMenuItem;
@@ -33,7 +37,7 @@ public class MainActivity extends RxActionBarActivity {
     // bus
     private BooleanBus mRefreshClickBus;
     // observables
-    private Observable<ArrayList<FlickrItem>> mFlickrItemsObs;
+    private ConnectableObservable<ArrayList<FlickrItem>> mFlickrItemsObs;
     private ConnectableObservable<Boolean> mLoadingObs;
     // main view pager
     private ViewPager mPager;
@@ -42,40 +46,64 @@ public class MainActivity extends RxActionBarActivity {
     // pager
     private FlickrItemImageAdapter mPagerAdapter;
 
+    private MainDataFragment mDataFragment;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+        //create data item
         mItems = new ArrayList<FlickrItem>();
+        //create view items
         mPagerAdapter = new FlickrItemImageAdapter(getSupportFragmentManager(), mItems);
-
         mPager = (ViewPager) findViewById(R.id.pager);
         mPager.setAdapter(mPagerAdapter);
-        // prepare views
         LayoutInflater inflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         mActionView = inflater.inflate(R.layout.ic_menu_refresh_image, null);
         // prepare animations
         mRotation = AnimationUtils.loadAnimation(this, R.anim.loading_rotate_anim);
         mRotation.setRepeatCount(Animation.INFINITE);
-        // simple bus to handle clicks to the refresh button
-        mRefreshClickBus = new BooleanBus();
-        // map the click of the refrsh button to a flickrRequest, which is transformed to flickr items
-        mFlickrItemsObs = mRefreshClickBus.toObserverable().concatMap(click -> {
-            Observable<JSONObject> jsonObs = Observables.flickrRequestObservable(this).subscribeOn(Schedulers.io());
-            Observable<ArrayList<FlickrItem>> flickrObj = Observables.flickrItemsObservable(jsonObs).subscribeOn(Schedulers.newThread());
-            return flickrObj;
-        }).cache();
-        // create a loading state observable with the refresh click triggering the loading
-        // and the mFlickrItemsObjs triggering the loaded
-        mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs).replay(1);
-        mLoadingObs.publish();
-        mLoadingObs.connect();
+        //see if we a re rebulding due to a config change
+        FragmentManager fm = getSupportFragmentManager();
+        mDataFragment= (MainDataFragment) fm.findFragmentByTag(DATA_TAG);
+        boolean rebuilt = (mDataFragment != null);
+        // if we aare not, create data fragment to store observables
+        // across config changes
+        if (rebuilt) {
+            // retrieve observables from data fragment
+            mFlickrItemsObs = mDataFragment.getFlickrItemsObs();
+            mLoadingObs = mDataFragment.getLoadingObs();
+            mRefreshClickBus = mDataFragment.getRefreshClickBus();
+        } else {
+            mDataFragment = new MainDataFragment();
+            fm.beginTransaction().add(mDataFragment,DATA_TAG).commit();
+            // simple bus to handle clicks to the refresh button
+            mRefreshClickBus = new BooleanBus();
+            // map the click of the refrsh button to a flickrRequest, which is transformed to flickr items
+            mFlickrItemsObs = mRefreshClickBus.toObserverable().concatMap(click -> {
+                Observable<JSONObject> jsonObs = Observables.flickrRequestObservable(getApplicationContext()).subscribeOn(Schedulers.io());
+                Observable<ArrayList<FlickrItem>> flickrObj = Observables.flickrItemsObservable(jsonObs).subscribeOn(Schedulers.newThread());
+                return flickrObj;
+            }).cache().replay(1);
+            mFlickrItemsObs.publish();
+            mFlickrItemsObs.connect();
+            // create a loading state observable with the refresh click triggering the loading
+            // and the mFlickrItemsObjs triggering the loaded
+            mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs).replay(1);
+            mLoadingObs.publish();
+            mLoadingObs.connect();
 
+            mDataFragment.setFlickrItemsObs(mFlickrItemsObs);
+            mDataFragment.setLoadingObs(mLoadingObs);
+            mDataFragment.setRefreshClickBus(mRefreshClickBus);
+        }
+        // begin subscribing
         LifecycleObservable.bindActivityLifecycle(lifecycle(), mFlickrItemsObs)
-                .subscribe(this::loaded);
-
-        mRefreshClickBus.push(true);
+            .subscribe(this::loaded);
+        // if we didnt rebuild- ie first load, then request a refresh
+        if(!rebuilt) {
+            mRefreshClickBus.push(true);
+        }
     }
 
     protected void loaded(ArrayList<FlickrItem> items) {

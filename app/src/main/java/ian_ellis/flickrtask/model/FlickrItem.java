@@ -17,8 +17,10 @@ public class FlickrItem {
     private String mDateTaken;
     private String mDescription;
     private String mMediumImagePath;
+    private JSONObject mJson;
 
     public FlickrItem(JSONObject json) {
+        mJson = json;
         mTitle = getString(json, "title");
         mLink= getString(json, "link");
         mDateTaken = getString(json, "date_taken");
@@ -26,9 +28,18 @@ public class FlickrItem {
         mMediumImagePath = getMediaPath(json, "m");
     }
 
-    public String getMediumImagePath() {
-        return mMediumImagePath;
-    }
+    public JSONObject getJson()         {return mJson;}
+    public String getMediumImagePath()  {return mMediumImagePath;}
+
+    @Override
+    public boolean equals(Object other){
+        if(other instanceof FlickrItem ) {
+            FlickrItem otherFlickr = (FlickrItem)other;
+            return mJson.toString().equals(otherFlickr.getJson().toString());
+        }
+        return false;
+    };
+
 
     private static String getMediaPath(JSONObject json, String propName) {
         try {

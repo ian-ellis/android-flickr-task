@@ -26,6 +26,11 @@ public class FlickrItemImageAdapter extends FragmentStatePagerAdapter {
     }
 
     @Override
+    public int getItemPosition(Object item) {
+        return POSITION_NONE;
+    }
+
+    @Override
     public int getCount() {
         return mItems.size();
     }

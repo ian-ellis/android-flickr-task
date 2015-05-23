@@ -31,6 +31,8 @@ public class FlickrItemFragment extends Fragment {
         return fragment;
     }
 
+    public String getImagePath(){return mImagePath;}
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
