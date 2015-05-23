@@ -110,6 +110,7 @@ public class MainActivity extends RxActionBarActivity {
         mItems.clear();
         mItems.addAll(items);
         mPagerAdapter.notifyDataSetChanged();
+        mPager.setCurrentItem(0);
     }
 
     protected void loadingStateChanged(boolean loading) {
