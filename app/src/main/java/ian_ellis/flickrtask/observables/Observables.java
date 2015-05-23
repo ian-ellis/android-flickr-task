@@ -12,6 +12,8 @@ import ian_ellis.flickrtask.model.FlickrItem;
 import ian_ellis.flickrtask.services.RequestQueue;
 import ian_ellis.flickrtask.services.Requests;
 import rx.Observable;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
 
 /**
  * Created by Ian on 17/05/2015.
@@ -31,14 +33,22 @@ public class Observables {
                         sub.onCompleted();
                     },
                     err -> {
-                        sub.onError(new Throwable("Request Error"));
+                        sub.onError(err);
                     }
                 )
             );
         });
     }
 
-    public static Observable<ArrayList<FlickrItem>> flickrItemsObservable(Observable<JSONObject> jsonObs) {
+    public static Observable<ArrayList<FlickrItem>> flickrLoadObservable(Observable<?> trigger,  Context context){
+        return trigger.concatMap(trig -> {
+            Observable<JSONObject> jsonObs = Observables.flickrRequestObservable(context).subscribeOn(Schedulers.io());
+            Observable<ArrayList<FlickrItem>> flickrObs = Observables.flickrDataTransformObservable(jsonObs).subscribeOn(Schedulers.newThread());
+            return flickrObs;
+        });
+    }
+
+    public static Observable<ArrayList<FlickrItem>> flickrDataTransformObservable(Observable<JSONObject> jsonObs) {
         return jsonObs.map(json -> {
             try {
                 JSONArray arr = json.getJSONArray("items");

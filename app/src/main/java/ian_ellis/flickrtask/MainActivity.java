@@ -4,6 +4,8 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.view.ViewPager;
 import android.os.Bundle;
@@ -13,6 +15,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
+import android.widget.Toast;
 
 import ian_ellis.flickrtask.activities.RxActionBarActivity;
 import ian_ellis.flickrtask.activities.dataFragments.MainDataFragment;
@@ -22,11 +25,11 @@ import ian_ellis.flickrtask.observables.Observables;
 import ian_ellis.flickrtask.view.adapters.FlickrItemImageAdapter;
 import rx.Observable;
 import rx.observables.ConnectableObservable;
-import rx.Subscription;
 import rx.android.lifecycle.LifecycleObservable;
 import rx.schedulers.Schedulers;
 
 public class MainActivity extends RxActionBarActivity {
+
     private static String DATA_TAG = "MainActivityData";
 
     // views
@@ -79,12 +82,10 @@ public class MainActivity extends RxActionBarActivity {
             fm.beginTransaction().add(mDataFragment,DATA_TAG).commit();
             // simple bus to handle clicks to the refresh button
             mRefreshClickBus = new BooleanBus();
-            // map the click of the refrsh button to a flickrRequest, which is transformed to flickr items
-            mFlickrItemsObs = mRefreshClickBus.toObserverable().concatMap(click -> {
-                Observable<JSONObject> jsonObs = Observables.flickrRequestObservable(getApplicationContext()).subscribeOn(Schedulers.io());
-                Observable<ArrayList<FlickrItem>> flickrObj = Observables.flickrItemsObservable(jsonObs).subscribeOn(Schedulers.newThread());
-                return flickrObj;
-            }).cache().replay(1);
+            // get a flickr observable and transform it
+            Observable<ArrayList<FlickrItem>> flickrItemsObs = getFlickrObs();
+            mFlickrItemsObs = flickrItemsObs.cache().replay(1);
+            // publish and connect so we can begin
             mFlickrItemsObs.publish();
             mFlickrItemsObs.connect();
             // create a loading state observable with the refresh click triggering the loading
@@ -92,26 +93,58 @@ public class MainActivity extends RxActionBarActivity {
             mLoadingObs = Observables.loadingObservable(mRefreshClickBus.toObserverable(), mFlickrItemsObs).replay(1);
             mLoadingObs.publish();
             mLoadingObs.connect();
-
+            // push observables into data fragment for storage
             mDataFragment.setFlickrItemsObs(mFlickrItemsObs);
             mDataFragment.setLoadingObs(mLoadingObs);
             mDataFragment.setRefreshClickBus(mRefreshClickBus);
         }
-        // begin subscribing
+        // begin subscribing to flickr items
         LifecycleObservable.bindActivityLifecycle(lifecycle(), mFlickrItemsObs)
-            .subscribe(this::loaded);
+        .subscribe(this::loaded);//, this::flickrObsError);
         // if we didnt rebuild- ie first load, then request a refresh
         if(!rebuilt) {
             mRefreshClickBus.push(true);
         }
     }
 
-    protected void loaded(ArrayList<FlickrItem> items) {
+    private Observable<ArrayList<FlickrItem>> getFlickrObs(){
+        return Observables.flickrLoadObservable(
+                mRefreshClickBus.toObserverable(),
+                getApplicationContext()
+        ).onErrorResumeNext(err -> {
+            handleFlickrError(err);
+            loadingStateChanged(false);
+            return getFlickrObs();
+        });
+    }
+
+    private void handleFlickrError(Throwable err){
+        String msg = "Oops some thing went wrong when loading images";
+        if(!isNetworkAvailable()){
+            msg = "No Internet Connection";
+        }
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+    }
+    private NetworkInfo getActiveNetworkInfo(){
+        ConnectivityManager connectivityManager
+                = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo;
+    }
+    private boolean isNetworkAvailable() {
+        NetworkInfo activeNetworkInfo = getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+    }
+
+    private void loaded(ArrayList<FlickrItem> items) {
         mItems.clear();
         mItems.addAll(items);
         mPagerAdapter.notifyDataSetChanged();
         mPager.setCurrentItem(0);
     }
+
+
+
 
     protected void loadingStateChanged(boolean loading) {
         if (loading) {
@@ -123,6 +156,7 @@ public class MainActivity extends RxActionBarActivity {
         }
     }
 
+
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
@@ -131,7 +165,7 @@ public class MainActivity extends RxActionBarActivity {
         // now we have the menu item we can subscribe and start loading
         // startUp();
         LifecycleObservable.bindActivityLifecycle(lifecycle(), mLoadingObs)
-                .subscribe(this::loadingStateChanged);
+                .subscribe(this::loadingStateChanged);//, this::loadingObsError);
 
         return true;
     }
